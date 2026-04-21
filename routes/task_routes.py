@@ -1,10 +1,9 @@
 from flask import Blueprint, request, jsonify
 from models.task import Task
 from utils.helper import auto_priority
+from app import db
 
 task_bp = Blueprint("tasks", __name__)
-
-tasks = []
 
 @task_bp.route("/tasks", methods=["POST"])
 def create_task():
@@ -15,30 +14,46 @@ def create_task():
 
     priority = auto_priority(data["deadline"])
 
-    task = Task(data["title"], data["deadline"], priority)
-    tasks.append(task)
+    task = Task(
+        title=data["title"],
+        deadline=data["deadline"],
+        priority=priority,
+        status="pending"
+    )
+
+    db.session.add(task)
+    db.session.commit()
 
     return jsonify({"message": "Task created", "task": task.to_dict()})
 
 
 @task_bp.route("/tasks", methods=["GET"])
 def get_tasks():
+    tasks = Task.query.all()
     return jsonify([task.to_dict() for task in tasks])
 
 
-@task_bp.route("/tasks/<int:index>", methods=["PUT"])
-def update_task(index):
-    if index >= len(tasks):
+@task_bp.route("/tasks/<int:id>", methods=["PUT"])
+def update_task(id):
+    task = Task.query.get(id)
+
+    if not task:
         return jsonify({"error": "Task not found"}), 404
 
-    tasks[index].status = "completed"
+    task.status = "completed"
+    db.session.commit()
+
     return jsonify({"message": "Task updated"})
 
 
-@task_bp.route("/tasks/<int:index>", methods=["DELETE"])
-def delete_task(index):
-    if index >= len(tasks):
+@task_bp.route("/tasks/<int:id>", methods=["DELETE"])
+def delete_task(id):
+    task = Task.query.get(id)
+
+    if not task:
         return jsonify({"error": "Task not found"}), 404
 
-    tasks.pop(index)
+    db.session.delete(task)
+    db.session.commit()
+
     return jsonify({"message": "Task deleted"})
